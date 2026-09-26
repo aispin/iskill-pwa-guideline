@@ -11,6 +11,7 @@ import { ref, computed } from 'vue'
 const base = (import.meta.env.BASE_URL || './').replace(/\/?$/, '/')
 const LS_UNLOCKED = 'pwa.gate.unlocked'
 const LS_KEY = 'pwa.gate.key'
+const LS_SALT = 'pwa.gate.salt'
 
 export interface GateInfo {
   gate: number
@@ -49,7 +50,8 @@ async function sha256Hex(text: string): Promise<string> {
 let encKey: CryptoKey | null = null
 
 async function importJwk(jwk: JsonWebKey): Promise<CryptoKey> {
-  return crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
+  // extractable 须与导出 JWK 的 ext:true 一致——WebKit 对不一致会抛 DataError
+  return crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM', length: 256 }, true, ['decrypt'])
 }
 
 /** 应用启动时调用：探测 gate.json，恢复记住的解锁状态 */
@@ -61,14 +63,21 @@ export async function initGate(): Promise<void> {
       const g = (await r.json()) as GateInfo
       if (g?.enabled) {
         gateInfo.value = g
-        if (localStorage.getItem(LS_UNLOCKED) === '1') {
+        // 记住的解锁状态绑定 salt：换码/重新加密生成新 salt，旧密钥解不开新数据，
+        // 必须丢弃记忆重新弹解锁层（否则拿旧钥匙解新锁 → WebCrypto OperationError 死锁）
+        const remembered = localStorage.getItem(LS_UNLOCKED) === '1' && localStorage.getItem(LS_SALT) === g.salt
+        if (remembered) {
           if (g.mode === 'encrypted') {
             const jwk = localStorage.getItem(LS_KEY)
             if (jwk) { try { encKey = await importJwk(JSON.parse(jwk)) } catch { encKey = null } }
           }
           // 加密档拿不到密钥（如换浏览器数据迁移）→ 重新要求输入
           unlocked.value = g.mode !== 'encrypted' || !!encKey
-          if (!unlocked.value) localStorage.removeItem(LS_UNLOCKED)
+        }
+        if (!unlocked.value) {
+          localStorage.removeItem(LS_UNLOCKED)
+          localStorage.removeItem(LS_KEY)
+          localStorage.removeItem(LS_SALT)
         }
       }
     }
@@ -101,6 +110,7 @@ export async function submitCode(input: string): Promise<boolean> {
     }
     unlocked.value = true
     localStorage.setItem(LS_UNLOCKED, '1')
+    localStorage.setItem(LS_SALT, g.salt)
     return true
   } catch {
     gateError.value = '校验失败，请重试'
@@ -114,6 +124,7 @@ export async function submitCode(input: string): Promise<boolean> {
 export function lockAgain(): void {
   localStorage.removeItem(LS_UNLOCKED)
   localStorage.removeItem(LS_KEY)
+  localStorage.removeItem(LS_SALT)
   location.reload()
 }
 
