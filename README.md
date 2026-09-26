@@ -1,25 +1,34 @@
-# iskill-pwa-update
+# iskill-pwa-guideline
 
-给任意 **Vite + vite-plugin-pwa** 项目补上「版本更新感知」，解决 PWA 更新后客户端缓存看不到新内容的问题。纯客户端方案，无需后端。
+PWA 标准化最佳实践指南——从线上验证过的电子书 PWA（[iskill-build-books](https://github.com/aispin/iskill-build-books)）实现中抽取的完整配方，覆盖五个关键面：
 
-## 一句话原理
+| 主题 | 一句话 |
+|------|--------|
+| ① Manifest 与安装 | 子路径部署不破、安装校验全过、自绘安装提示 |
+| ② 图标 | 按应用名程序化生成全套图标（SVG/PNG/maskable/iOS），三级回退光栅链，无需设计师 |
+| ③ 离线与缓存 | 按资源类型选 SW 策略的决策表（预缓存/SWR/NetworkFirst/CacheFirst） |
+| ④ 版本更新感知 | 双指纹检测 + 静默提醒 + 设置页检查更新 + 一键清缓存——解决「更新后看不到新内容」 |
+| ⑤ 访问门禁 | 纯客户端邀请码：哈希校验 / 内容加密（PBKDF2+AES-256-GCM）两档，记住设备、平滑接后端 |
 
-应用壳变化靠 SW 预缓存 diff 发现；**数据-only 变化 SW 根本感知不到**，所以每次构建注入双指纹（打进 JS 包的 `src/version.ts` + 进 dist 的 `public/build-info.json`），线上应用启动时网络优先拉取比对，发现新版本只亮一条可关闭的轻提示，用户可随时在设置面板手动检查并「立即更新」（清全部缓存 + 注销 SW + 强制刷新）。
+纯客户端方案，零后端依赖；参考代码在 `references/`，可直接拷用。
 
-## 内容
+## 目录
 
-| 文件 | 说明 |
-|------|------|
-| `SKILL.md` | 完整施工指南：三类更新决策表、施工五步、立即更新三步法、7 条踩坑清单、iOS/后端演进 |
-| `references/useAppUpdate.ts` | Vue 3 composable（零新增依赖），检测 + 静默提醒 + 一键更新 |
-| `references/inject-fingerprint.mjs` | 构建前注入双指纹的脚本（node 直跑） |
-| `references/vite-pwa-config.snippet.ts` | vite.config 关键片段：registerType + 按资源类型的 runtimeCaching 配方 |
+```
+SKILL.md                          # 完整指南（决策表 + 施工步骤 + 踩坑清单）
+references/
+  update/                         # ④ 版本更新感知
+    inject-fingerprint.mjs        #   构建前注入双指纹（node 直跑）
+    useAppUpdate.ts               #   Vue 3 composable（零新增依赖）
+    vite-pwa-config.snippet.ts    #   vite.config 缓存配方
+  icons/                          # ② 图标
+    generate-icons.mjs            #   程序化生成 + 三级回退光栅链（含零依赖 PNG 编码器）
+    manifest-icons.snippet.ts     #   manifest 图标段 + <head> 接线
+  gate/                           # ⑤ 访问门禁
+    gate-cli.mjs                  #   构建侧：生成/加密/解密（node:crypto，零依赖）
+    gate-client.ts                #   浏览器侧：解锁/记住设备/解密
+```
 
-## 快速接入（4 步）
+## 快速接入
 
-1. `node references/inject-fingerprint.mjs <appDir>` 挂到构建流程（vite build 之前）
-2. 按片段改 `vite.config.ts`（`registerType: 'prompt'` + runtimeCaching 配方）
-3. 拷 `useAppUpdate.ts` 到 `src/composables/`
-4. 设置面板加「关于」区 + 全局轻提示（UI 原则见 SKILL.md）
-
-> 来源：从 [iskill-build-books](https://github.com/aispin/iskill-build-books)（Vue 3 电子书 PWA）v1.5.0 的线上验证实现中抽取泛化。
+做 PWA 时把 SKILL.md 当 checklist 过一遍：Manifest → 图标 → 缓存策略 → 更新感知 →（需要时）门禁。每个主题的参考代码标注了拷贝位置与前置条件。

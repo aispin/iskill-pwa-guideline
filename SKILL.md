@@ -1,57 +1,75 @@
 ---
-name: iskill-pwa-update
-description: 给任意 Vite + vite-plugin-pwa 项目补上「版本更新感知」——构建双指纹、启动静默提醒、设置面板检查更新、立即更新一键清缓存；解决 PWA 更新后客户端缓存看不到新内容。当用户提到 PWA 更新、SW 缓存旧内容、缓存不刷新、检查新版本、Service Worker 更新提示时使用。
+name: iskill-pwa-guideline
+description: PWA 标准化最佳实践指南——Manifest 与安装、图标（程序化生成/maskable 安全区）、离线缓存策略、版本更新感知（双指纹+静默提醒+一键清缓存）、纯客户端访问门禁（哈希/内容加密两档）。当用户要做 PWA 应用、提到 SW 缓存旧内容、缓存不刷新、图标生成、应用加锁/邀请码、离线策略时使用。
 ---
 
-# PWA 更新感知（Vite + vite-plugin-pwa）
+# PWA 最佳实践指南（Vite + vite-plugin-pwa）
 
-## 要解决什么
+一套从线上验证过的电子书 PWA（iskill-build-books）中抽取的标准配方，覆盖 PWA 应用的五个关键面。每个主题按「决策 → 施工 → 参考实现」组织，参考代码可直接拷用。
 
-PWA 靠 Service Worker 缓存换来离线可用，代价是：应用更新后老用户可能长期停留在旧版本——
+## 总览
 
-- SW 静默更新（autoUpdate）要等用户**下次刷新**才生效；
-- 运行时数据走 SWR 策略更是「先给旧缓存、后台才拉新」，明明服务器已有新内容，用户看到的还是旧的；
-- 配置类小文件（门禁、功能开关）被 SWR 缓存后，改了配置老访客毫无感知。
+| 主题 | 核心问题 | 参考实现（references/） |
+|------|----------|------------------------|
+| ① Manifest 与安装 | 装得上、装得对 | —（本文档够用） |
+| ② 图标 | 各平台形状/尺寸全覆盖，无需设计师 | `icons/generate-icons.mjs` |
+| ③ 离线与缓存 | 什么资源用什么策略（选错=更新失灵） | `update/vite-pwa-config.snippet.ts` |
+| ④ 版本更新感知 | 更新后老用户看不到新内容 | `update/` 三件套 |
+| ⑤ 访问门禁 | 受限内容分发（纯客户端天花板） | `gate/` 两件套 |
 
-本 skill 提供一套**纯客户端**方案（无需后端）：让用户「知道有新版本、一键拿到新内容」，且不打断正常使用。
+---
 
-> 来源：从 iskill-build-books（电子书 PWA）v1.5.0 的真实实现中抽取泛化，已在线上实例验证。
+## ① Manifest 与安装
 
-## 核心认知：三类更新，两条检测通道
+必查清单：
+- `id`、`start_url`、`scope` 三处统一用相对根（如 `'./'`），保证部署到任意子路径都不破
+- `display: 'standalone'`、`lang`、`theme_color`、`background_color` 齐全——Chrome 安装校验与启动画面的来源
+- 自定义安装提示：监听 `beforeinstallprompt` 存下事件，用自绘 UI 触发 `prompt()`（浏览器默认横幅无法控样式，且错过就不再弹）
+- iOS 没有 beforeinstallprompt，只能引导用户「分享 → 添加到主屏幕」，另需 `apple-touch-icon` link
 
-| 更新内容 | 例子 | SW 预缓存 diff 能发现吗 | 检测通道 |
-|---|---|---|---|
-| 应用壳（JS/CSS/HTML/图标） | UI 改动、模板升级 | **能**（产物文件名带 hash） | SW `onNeedRefresh` |
-| 运行时数据 | 章节/列表/内容 JSON | **不能**（不进预缓存，SWR 先旧后新） | 双指纹比对 |
-| 配置类小文件 | 门禁、开关、远端参数 | 不能 | 该类文件直接改 NetworkFirst |
+## ② 图标
 
-**只把 registerType 改成 prompt 是不够的**——数据-only 的更新根本不触发 SW 更新事件，必须靠「构建指纹」兜底。
+**决策**：SVG（`sizes: 'any'`）为主 + PNG 192/512（Chrome 安装校验硬要求）+ maskable-512（Android 自适应裁切）+ apple-touch-icon-180（iOS）。manifest 管不到 iOS 主屏图标，必须另放 `<link rel="apple-touch-icon">`。
 
-## 施工五步
+**maskable 安全区**：图形主体放中央 80%，四周留纯色背景，否则圆形裁切切掉内容——最常见的图标翻车点。
 
-1. **构建时注入双指纹**（检测的信号源）
-   - `public/build-info.json` → 进 dist，供线上带 cache-bust 网络优先拉取；
-   - `src/version.ts` → 打进 JS 包，代表「客户端当前运行的应用壳版本」。
-   - 两份的 `builtAt` 都由同一次构建生成，比对无时钟偏差问题。
-   - 参考 `references/inject-fingerprint.mjs`（在 vite build 之前调用）。
+**没有设计师怎么办**：`references/icons/generate-icons.mjs` 按应用名哈希出稳定色相，程序化生成整套图标。内置三级回退光栅链：resvg → 纯 JS 光栅（自带零依赖 PNG 编码器）→ svg-only（自动改写 manifest 不留死链），任何环境构建不中断。图形本身按需替换，工程骨架（色相哈希、maskable 缩放 0.8、回退链）直接复用。manifest 图标段与 `<head>` 接线见 `references/icons/manifest-icons.snippet.ts`。
 
-2. **vite.config 调整**：`registerType: 'prompt'` + runtimeCaching 按资源类型配方。
-   参考 `references/vite-pwa-config.snippet.ts`。
+## ③ 离线与缓存策略
 
-3. **接入 useAppUpdate composable**：拷 `references/useAppUpdate.ts` 到 `src/composables/`。
-   它做三件事：注册 SW 监听 onNeedRefresh；启动时静默比对指纹；暴露 `checkForUpdate` / `applyUpdate`。
+按资源类型选策略，选错是 PWA 大半事故的根源：
 
-4. **UI 接线**（两条交互 + 三条 UX 原则）：
-   - 设置面板加「关于」区：当前版本 + 构建时间 + 「检查更新」按钮（检查中/已是最新/发现新版本 vN/网络不可用 四态反馈）+「立即更新」；
-   - 应用启动后发现新版本，只亮**一条可关闭的底部轻提示**「新版本已就绪」；
-   - 三条原则：**不打断主任务**（阅读中绝不弹窗）、**可关闭**（关了就别再骚扰）、**发现 ≠ 强制**（用户有「知道了但暂时不更」的权利）。
+| 资源 | 策略 | 理由 |
+|------|------|------|
+| 应用壳 JS/CSS/HTML | 预缓存（globPatterns） | 文件名带 hash，天然可更新 |
+| 内容/数据 JSON | **StaleWhileRevalidate** | 离线可读，后台拉新 |
+| 配置类小 JSON（门禁/开关） | **NetworkFirst**（3s 超时） | SWR 会「先旧后新」，改配置老访客必见旧值——高频踩坑点 |
+| 大体积媒体（音视频） | CacheFirst | 基本不变，吃缓存 |
+| HTML 导航 | navigateFallback | SPA 离线直达路由 |
 
-5. **验证清单**：
-   - 改一点内容 → 重新构建 → 部署 → 打开已访问过的浏览器，应见轻提示；设置页「检查更新」应报新版本号；
-   - 点「立即更新」→ 页面刷新后内容为最新、localStorage 之外的旧缓存全部消失（DevTools → Application → Cache Storage 应只剩新 SW 写入的）；
-   - `grep NetworkFirst dist/sw.js` 确认配置类路由生成；`vue-tsc --noEmit` 过。
+注意 runtimeCaching 路由**先匹配先生效**，具体 pattern 放宽 pattern 前面。完整配置见 `references/update/vite-pwa-config.snippet.ts`。
 
-## 「立即更新」为什么是三步，而不是 updateSW(true)
+## ④ 版本更新感知
+
+### 三类更新，两条检测通道
+
+| 更新内容 | SW 预缓存 diff 能发现吗 | 检测通道 |
+|---|---|---|
+| 应用壳（JS/CSS/HTML/图标） | **能** | SW `onNeedRefresh` |
+| 运行时数据（内容 JSON） | **不能** | 双指纹比对 |
+| 配置类小文件 | 不能 | 直接 NetworkFirst |
+
+**只把 registerType 改成 prompt 是不够的**——数据-only 的更新不触发 SW 更新事件，必须靠构建指纹。
+
+### 施工五步
+
+1. **注入双指纹**（build 前跑 `references/update/inject-fingerprint.mjs`）：`public/build-info.json`（进 dist，线上带 cache-bust 网络优先拉取）+ `src/version.ts`（打进 JS 包，代表当前运行版本）。两份 builtAt 同源写入，比对无时钟偏差。
+2. **vite.config**：`registerType: 'prompt'` + ③ 的缓存配方。
+3. **接入 composable**：拷 `references/update/useAppUpdate.ts`，注册 SW 监听 + 启动静默比对 + 暴露检查/更新 API。
+4. **UI 接线**：设置面板「关于」区（版本/构建时间/检查更新/立即更新）+ 启动后发现新版本只亮一条可关闭的底部轻提示。三条 UX 原则：**不打断主任务**、**可关闭**、**发现 ≠ 强制**。
+5. **验证**：改内容 → 重建 → 部署 → 已访问浏览器应见提示；立即更新后 Cache Storage 只剩新 SW 写入；`grep NetworkFirst dist/sw.js`；`vue-tsc --noEmit`。
+
+### 「立即更新」为什么是三步法，而不是 updateSW(true)
 
 ```ts
 await Promise.all((await caches.keys()).map((k) => caches.delete(k)))   // 1. 清全部 Cache Storage
@@ -59,20 +77,41 @@ await Promise.all((await navigator.serviceWorker.getRegistrations()).map((r) => 
 location.reload()                                                        // 3. 强制刷新
 ```
 
-`updateSW(true)` 只让新 SW 接管并发消息，**旧的运行时缓存（SWR 攒下的旧数据）原样保留**——正是「看不到新内容」的元凶。三步法把缓存全部推倒，刷新后由新 SW 重建，代价只是首访多拉几次数据，可接受。
+`updateSW(true)` 只让新 SW 接管，**旧的运行时缓存（SWR 攒下的旧数据）原样保留**——正是「看不到新内容」的元凶。三步法全部推倒由新 SW 重建，代价只是首访多拉几次数据；且清缓存+reload 不依赖 SW 接管时序，iOS Safari 上同样可靠。
 
-## 踩坑清单
+## ⑤ 访问门禁（纯客户端邀请码）
 
-1. **指纹拉取必须 `cache: 'no-store'`**：只加 `?t=` 参数不够，部分 HTTP 缓存层会吃掉带 query 的请求。
-2. **配置类文件别用 SWR**（如 gate/开关 JSON）：SWR 先旧后新，改配置后老访客首访必见旧值；改 NetworkFirst（`networkTimeoutSeconds: 3`）。
-3. **runtimeCaching 路由有顺序**：先匹配先生效，更具体的 pattern（gate.json）要放在宽 pattern（data/*.json）**前面**。
-4. **TS 5.9+ 的 `Uint8Array<ArrayBufferLike>` 不满足 `BufferSource`**：对要传给 `crypto.subtle` 的字节数组，显式标注/构造 `Uint8Array<ArrayBuffer>`（`new Uint8Array(new ArrayBuffer(n))`）。
-5. **静默检查要等 SW ready**：`navigator.serviceWorker.ready` + 4s 超时兜底再比对，否则冷启动竞态下容易误报。
-6. **dev 模式没有 SW**：composable 里所有 SW 调用都要可选链 + try/catch，别让开发环境报错。
-7. **对已生成实例重跑 build 不会重拷模板**（若你的项目有类似"模板+实例"结构）：改了模板里的 vite.config 后必须先 init/upgrade 再 build，否则 SW 策略还是旧的。
+**两档防护**（`references/gate/`，构建侧 + 浏览器侧各一份，算法严格对齐）：
+
+| 档位 | 原理 | 防护强度 |
+|------|------|----------|
+| hash 档 | 只存 `SHA-256(salt + 规范化码)`，产物内无明码 | 防君子；短码有被枚举的理论风险 |
+| encrypted 档 | 数据 JSON 用 `PBKDF2(码, 15万次)` 派生 AES-256-GCM 密钥整体加密 | 天花板：扒走数据文件没有码也解不开 |
+
+关键设计：
+- **规范化两端一致**：去所有空白 + 忽略大小写（`replace(/\s+/g,'').toLowerCase()`），用户体验宽松、比对不误伤
+- **记住设备**：解锁后导出派生密钥 JWK 存 localStorage，刷新免重输；设置面板可「上锁」重新要求输入
+- **换码安全**：加密数据改码/移除前必须先用原码 `decryptData` 解回明文，再重新加密
+- **移除不删文件**：写 `{ enabled: false }` 覆盖 gate.json，幂等且免删除权限
+- **缓存配合**：gate.json 必须 NetworkFirst（见 ③），否则换码后老访客首访见旧门禁
+- **UX**：全屏磨砂覆盖层解锁后才渲染主内容（加密数据物理上不可读，不是「隐藏」）；错误提示不泄露是码错还是数据坏
+
+纯客户端的边界：码本身可被分享，适合「礼貌性付费/邀请制」，不适合作强安全。将来接后端：校验换接口、密钥改服务端下发，UI 与 gate.json 格式不变。
+
+---
+
+## 通用踩坑清单
+
+1. 指纹拉取必须 `cache: 'no-store'`——只加 `?t=` 参数不够，部分 HTTP 缓存层会吃掉带 query 的请求
+2. 配置类文件别用 SWR（先旧后新），改 NetworkFirst
+3. runtimeCaching 路由先匹配先生效，具体 pattern 在前
+4. TS 5.9+ 的 `Uint8Array<ArrayBufferLike>` 不满足 `BufferSource`：传给 `crypto.subtle` 的字节数组显式标注 `Uint8Array<ArrayBuffer>`（`new Uint8Array(new ArrayBuffer(n))`）
+5. 静默检查要等 `navigator.serviceWorker.ready` + 超时兜底，避免冷启动竞态误报
+6. dev 模式没有 SW：所有 SW 调用可选链 + try/catch
+7. 若你的项目是「模板 + 实例」结构：改了模板必须先 init/upgrade 再 build，否则实例里还是旧配置
 
 ## 边界与演进
 
-- **纯客户端做不到真推送**：本方案是「启动时版本比对」的准推送效果。将来接后端，把比对目标换成服务端版本接口 + Web Push（VAPID）订阅，交互层零改动。
-- **iOS Safari PWA**：SW 更新节奏更保守，「立即更新」的三步法在 iOS 上同样有效（清缓存 + reload 不依赖 SW 接管时序），这也是选三步法而非 updateSW 的原因之一。
-- **多标签页**：一个标签更新会连带其它标签刷新（SW 注销是全局的），极端场景可用 BroadcastChannel 先提示再操作，一般无需处理。
+- **纯客户端做不到真推送**：④ 是「启动时版本比对」的准推送效果；接后端后换服务端版本接口 + Web Push（VAPID），交互层零改动
+- **多标签页**：一个标签更新会连带其它标签刷新（SW 注销是全局的），一般无需处理；讲究可用 BroadcastChannel 先提示
+- **iOS Safari**：SW 更新节奏保守，④ 的三步法不依赖接管时序，iOS 上可靠
