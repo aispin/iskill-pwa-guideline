@@ -1,6 +1,6 @@
 ---
 name: iskill-pwa-guideline
-description: PWA 标准化最佳实践指南——Manifest 与安装、图标（程序化生成/maskable 安全区）、离线缓存策略、版本更新感知（双指纹+静默提醒+一键清缓存）、纯客户端访问门禁（哈希/内容加密两档）。当用户要做 PWA 应用、提到 SW 缓存旧内容、缓存不刷新、图标生成、应用加锁/邀请码、离线策略时使用。
+description: PWA 标准化最佳实践指南——Manifest 与安装（含 theme-color 状态栏色同步）、图标（程序化生成/maskable 安全区）、离线缓存策略、版本更新感知（双指纹+静默提醒+一键清缓存）、纯客户端访问门禁（哈希/内容加密两档）。当用户要做 PWA 应用、提到 SW 缓存旧内容、缓存不刷新、图标生成、应用加锁/邀请码、离线策略、主题切换状态栏颜色时使用。
 ---
 
 # PWA 最佳实践指南（Vite + vite-plugin-pwa）
@@ -26,6 +26,36 @@ description: PWA 标准化最佳实践指南——Manifest 与安装、图标（
 - `display: 'standalone'`、`lang`、`theme_color`、`background_color` 齐全——Chrome 安装校验与启动画面的来源
 - 自定义安装提示：监听 `beforeinstallprompt` 存下事件，用自绘 UI 触发 `prompt()`（浏览器默认横幅无法控样式，且错过就不再弹）
 - iOS 没有 beforeinstallprompt，只能引导用户「分享 → 添加到主屏幕」，另需 `apple-touch-icon` link
+
+### theme-color：两个同名配置，管的东西不同
+
+| 配置 | 作用范围 |
+|------|----------|
+| manifest 的 `theme_color` | **已安装** App 的标题栏/启动画面（Android） |
+| `<meta name="theme-color">` | **浏览器内**访问时的地址栏色（Android Chrome / iOS Safari 15+ 标签栏） |
+
+两者都要设，且值保持一致。iOS **独立窗口模式**下状态栏色不看 theme-color，由
+`apple-mobile-web-app-status-bar-style`（default/black/black-translucent）决定——三处一起检查。
+
+**运行时主题必须同步 meta（高频翻车点）**：构建时写入的静态 meta 只对应默认主题，
+应用内切主题后状态栏颜色不变，看起来像「主题没生效」的 bug。修复——切主题时把当前
+背景色写回 meta：
+
+```ts
+function syncThemeColor() {
+  const root = document.documentElement
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta) {
+    // 主题色以 CSS 变量承载时，getComputedStyle 会强制重算样式，读到切换后的值
+    const bg = getComputedStyle(root).getPropertyValue('--bg').trim()
+    if (bg) meta.setAttribute('content', bg)
+  }
+}
+// 切主题入口调用；若主题以 data-theme 属性切换，watch 该属性即可
+```
+
+纯明暗两态（无自定义主题）可用无 JS 方案：多个带 `media="(prefers-color-scheme: dark)"`
+的 meta theme-color，浏览器自动选。
 
 ## ② 图标
 
@@ -126,6 +156,7 @@ location.reload()                                                        // 3. �
 7. 若你的项目是「模板 + 实例」结构：改了模板必须先 init/upgrade 再 build，否则实例里还是旧配置
 8. SW 注册一律带 `updateViaCache: 'none'`——无 Cache-Control 的托管（很多静态托管都这样）会启发式缓存 `sw.js`，更新检测时间漂移（见 ④）
 9. App 可能长驻后台不重开：`visibilitychange` → visible 时主动 `registration.update()`，否则只有重开才感知新版
+10. 有运行时主题的 App，切主题必须同步 `<meta name="theme-color">`，否则状态栏颜色不变、像主题失灵（见 ①）
 
 ## 边界与演进
 
