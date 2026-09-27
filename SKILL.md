@@ -69,6 +69,21 @@ description: PWA 标准化最佳实践指南——Manifest 与安装、图标（
 4. **UI 接线**：设置面板「关于」区（版本/构建时间/检查更新/立即更新）+ 启动后发现新版本只亮一条可关闭的底部轻提示。三条 UX 原则：**不打断主任务**、**可关闭**、**发现 ≠ 强制**。
 5. **验证**：改内容 → 重建 → 部署 → 已访问浏览器应见提示；立即更新后 Cache Storage 只剩新 SW 写入；`grep NetworkFirst dist/sw.js`；`vue-tsc --noEmit`。
 
+### 更新感知为什么「过一会儿才弹」（线上实测）
+
+`registerType: 'prompt'` 下，从发布新版到提示弹出有三个延迟来源，逐个消除：
+
+1. **`sw.js` 的 HTTP 缓存（最大元凶）**：托管方没下发 `Cache-Control` 时，浏览器按启发式缓存（基于 Last-Modified，最长 24h 内视为新鲜）——发布后一段时间内更新检查拉到的还是旧 `sw.js`，比对不出差异，**时间因此漂移不定**。修复：注册时声明绕过 HTTP 缓存
+   ```ts
+   registerSW({ immediate: true, onNeedRefresh,
+     registrationOptions: { updateViaCache: 'none' } })
+   ```
+   （`updateViaCache: 'none'` 是标准 RegistrationOptions，更新检查不读 HTTP 缓存；静态资源预缓存不受影响）
+2. **浏览器只在页面打开/导航时检查**（另加每 24h / push / sync），App 长驻后台不会自己查。修复：`visibilitychange` → visible 时调 `registration.update()`
+3. **发现 diff ≠ 立即弹**：要等新 SW 下载并预缓存全部资源装完才触发 `onNeedRefresh`，弱网下数十秒属正常。无须修，但要知道这不是 bug。
+
+修复后语义：发布新版 → 用户**下次打开 App 必发现**（秒级链路）→ 弹可关闭轻提示 → 点「刷新」走三步法切换。prompt 交互不变。
+
 ### 「立即更新」为什么是三步法，而不是 updateSW(true)
 
 ```ts
@@ -109,6 +124,8 @@ location.reload()                                                        // 3. �
 5. 静默检查要等 `navigator.serviceWorker.ready` + 超时兜底，避免冷启动竞态误报
 6. dev 模式没有 SW：所有 SW 调用可选链 + try/catch
 7. 若你的项目是「模板 + 实例」结构：改了模板必须先 init/upgrade 再 build，否则实例里还是旧配置
+8. SW 注册一律带 `updateViaCache: 'none'`——无 Cache-Control 的托管（很多静态托管都这样）会启发式缓存 `sw.js`，更新检测时间漂移（见 ④）
+9. App 可能长驻后台不重开：`visibilitychange` → visible 时主动 `registration.update()`，否则只有重开才感知新版
 
 ## 边界与演进
 
