@@ -36,15 +36,19 @@ window.PROMO = {
         meta2: "零后端依赖",
         meta3: "MIT 许可"
       },
-      terminal: {
-        title: "zsh — iskill-pwa-guideline",
-        lines: [
-          [{ t: "$ ", c: "p" }, { t: "node scripts/inject-fingerprint.mjs", c: "k" }],
-          [{ t: "✓ ", c: "p" }, { t: "已写入 public/build-info.json 与 src/version.ts（builtAt 同源）", c: "s" }],
-          [{ t: "$ ", c: "p" }, { t: "grep -n \"updateViaCache\" references/update/vite-pwa-config.snippet.ts", c: "k" }],
-          [{ t: "✓ ", c: "p" }, { t: "registerSW({ updateViaCache: 'none' }) —— 解决发布后更新检测漂移", c: "s" }]
+      chat: {
+        title: "AI Agent · 对话现场",
+        status: "在线",
+        userLabel: "你",
+        agentLabel: "AI",
+        messages: [
+          { role: "user", text: "按 PWA 规范检查我这个项目，缺什么补什么" },
+          { role: "agent", text: "逐项过：manifest 与安装、theme-color 同步状态栏、图标与 maskable 安全区、离线缓存策略、版本更新感知。", tag: "已读 最佳实践" },
+          { role: "user", text: "用户老说看到的还是旧版本" },
+          { role: "agent", text: "那是缓存没感知到更新：构建时注入双指纹，web 壳与数据两路都能检测；检测到就静默提醒 + 一键清缓存。" }
         ]
       },
+
 
       stats: [
         { value: "5", label: "关键面", note: "Manifest / 图标 / 缓存 / 更新感知 / 门禁" },
@@ -147,15 +151,19 @@ window.PROMO = {
         meta2: "Zero backend",
         meta3: "MIT licensed"
       },
-      terminal: {
-        title: "zsh — iskill-pwa-guideline",
-        lines: [
-          [{ t: "$ ", c: "p" }, { t: "node scripts/inject-fingerprint.mjs", c: "k" }],
-          [{ t: "✓ ", c: "p" }, { t: "wrote public/build-info.json and src/version.ts (same builtAt source)", c: "s" }],
-          [{ t: "$ ", c: "p" }, { t: "grep -n \"updateViaCache\" references/update/vite-pwa-config.snippet.ts", c: "k" }],
-          [{ t: "✓ ", c: "p" }, { t: "registerSW({ updateViaCache: 'none' }) — fixes update-check drift after release", c: "s" }]
+      chat: {
+        title: "AI Agent · live session",
+        status: "online",
+        userLabel: "You",
+        agentLabel: "AI",
+        messages: [
+          { role: "user", text: "Audit my project against the PWA guidelines and fix what's missing" },
+          { role: "agent", text: "Item by item: manifest and install, theme-color synced to the status bar, icons and maskable safe zone, offline caching, update detection.", tag: "read best practices" },
+          { role: "user", text: "Users keep seeing the old version" },
+          { role: "agent", text: "That's stale cache with no update signal: inject dual fingerprints at build time so both the shell and the data path are detectable, then notify silently and offer one-tap cache clearing." }
         ]
       },
+
 
       stats: [
         { value: "5", label: "key areas", note: "manifest / icons / caching / update awareness / gating" },
