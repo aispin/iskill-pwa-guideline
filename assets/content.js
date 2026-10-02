@@ -98,14 +98,15 @@ window.PROMO = {
 
       steps: {
         eyebrow: "上手",
-        title: "三步用起来",
-        sub: "",
+        title: "三步跑起来",
+        sub: "命令由 agent 跑，你只说要什么、看结果。",
         items: [
           { title: "交给 AI 装", desc: "把这句话粘进对话框，agent 会自己拉代码、读文档，再告诉你用法。", codeKey: "install" },
-          { title: "把参考代码拷进项目", desc: "按需取 update / icons / gate 三套，文件里标了拷贝位置与前置条件。", codeName: "shell", code: "cp references/update/inject-fingerprint.mjs scripts/" },
-          { title: "构建前注入双指纹", desc: "让 web 壳与数据两路更新都能被检测到。", codeName: "shell", code: "node scripts/inject-fingerprint.mjs" }
+          { title: "让它按规范过一遍", desc: "这是指南型技能：代码由它按你的项目改，不是让你照抄片段。", codeName: "prompt", code: "按 PWA 规范检查我这个项目：manifest、图标、离线缓存、更新感知，缺什么补什么。" },
+          { title: "装到桌面真机验一遍", desc: "缓存不刷新、状态栏颜色、maskable 安全区这些坑只有真机装一遍才看得出来——这步只能你做。" }
         ]
       },
+
 
       faq: {
         eyebrow: "问答",
@@ -208,14 +209,15 @@ window.PROMO = {
 
       steps: {
         eyebrow: "Get started",
-        title: "Put it to work in three steps",
-        sub: "",
+        title: "Up and running in three steps",
+        sub: "The agent runs the commands. You say what you want and check the result.",
         items: [
           { title: "Let your agent install it", desc: "Paste the line into the chat — it clones the repo, reads the docs, and tells you how to use it.", codeKey: "install" },
-          { title: "Copy the reference code in", desc: "Take update / icons / gate as needed; each file notes where to copy it and what it needs.", codeName: "shell", code: "cp references/update/inject-fingerprint.mjs scripts/" },
-          { title: "Inject dual fingerprints before build", desc: "So both the web shell and data-only updates can be detected.", codeName: "shell", code: "node scripts/inject-fingerprint.mjs" }
+          { title: "Have it audit against the guide", desc: "It's a guideline skill: the agent adapts the snippets to your project instead of you copying them.", codeName: "prompt", code: "Audit my project against the PWA guidelines — manifest, icons, offline caching, update detection — and fix whatever's missing." },
+          { title: "Install it and check on a real device", desc: "Stale caches, status-bar color and maskable safe zones only show up on a real install. That part is yours." }
         ]
       },
+
 
       faq: {
         eyebrow: "FAQ",
