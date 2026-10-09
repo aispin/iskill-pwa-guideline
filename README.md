@@ -33,4 +33,4 @@ references/
 
 做 PWA 时把 SKILL.md 当 checklist 过一遍：Manifest → 图标 → 缓存策略 → 更新感知 →（需要时）门禁。每个主题的参考代码标注了拷贝位置与前置条件。
 
-> 依赖同步：本仓库含 iskill 共享真源的 vendored 副本（清单见 `package.json` 的 `iskillDeps`），**不要手改**。使用前请同时安装 iskill-dep-sync：对 agent 说「请帮我安装 Skill：aispin/iskill-dep-sync」；用法见 SKILL.md「依赖同步」节。
+> 依赖同步：本仓库含 iskill 共享真源的 vendored 副本（清单见 `package.json` 的 `iskillDeps`），**不要手改**。使用前请同时安装 iskill-utils：对 agent 说「请帮我安装 Skill：aispin/iskill-utils」；用法见 SKILL.md「依赖同步」节。
