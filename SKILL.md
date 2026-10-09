@@ -163,3 +163,15 @@ location.reload()                                                        // 3. �
 - **纯客户端做不到真推送**：④ 是「启动时版本比对」的准推送效果；接后端后换服务端版本接口 + Web Push（VAPID），交互层零改动
 - **多标签页**：一个标签更新会连带其它标签刷新（SW 注销是全局的），一般无需处理；讲究可用 BroadcastChannel 先提示
 - **iOS Safari**：SW 更新节奏保守，④ 的三步法不依赖接管时序，iOS 上可靠
+
+## 依赖同步
+
+本仓库 `promo-page/assets/{app.js,style.css,icons.js}` 是 [iskill-promo-page](https://github.com/aispin/iskill-promo-page)
+模板引擎的 vendored 副本（锁定版本见 `package.json` 的 `iskillDeps`），**不要手改**——
+去真源仓库改并升 `@iskill-version`，再用 iskill-dep-sync 同步回来（本机无该工具时按下面自举）：
+
+```bash
+T="$HOME/.workbuddy/skills/iskill-dep-sync/scripts/skill-deps.mjs"
+[ -f "$T" ] || { TMP="$(mktemp -d)"; curl -fsSL "https://raw.githubusercontent.com/aispin/iskill-dep-sync/HEAD/scripts/skill-deps.mjs" -o "$TMP/skill-deps.mjs"; T="$TMP/skill-deps.mjs"; }
+node "$T" check "$(pwd)"     # 漂移检测；node "$T" sync "$(pwd)" 恢复/升级；node "$T" env "$(pwd)" 冷启动自检
+```
